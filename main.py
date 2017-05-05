@@ -1,5 +1,6 @@
 from gui import GUI, run
 from PyQt4.QtCore import QObject, SIGNAL
+# probando
 
 class BoBlo(QObject):
     '''
