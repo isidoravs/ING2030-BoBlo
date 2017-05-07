@@ -1,7 +1,8 @@
 from PyQt4.QtGui import QWidget, QLabel, QPixmap, QMainWindow, QApplication
 from PyQt4.QtGui import QRadioButton, QLineEdit, QPushButton, QDesktopWidget
 from PyQt4.QtGui import QListWidget, QListWidgetItem, QIcon, QFont
-from PyQt4.QtCore import QTimer, Qt, SIGNAL, QSize
+from PyQt4.QtGui import QTableWidget, QTableWidgetItem, QAbstractItemView
+from PyQt4.QtCore import Qt, SIGNAL, QSize
 from .utils import plastic_to_blocks
 import os
 # from .file import Class
@@ -21,7 +22,7 @@ class GUI(QMainWindow):
         self.boblo.raise_()
 
     def connections(self):
-        self.boblo.aux_button.clicked.connect(self.step2)
+        self.connect(self.boblo, SIGNAL("sim"), self.step2)
         self.boblo.to_step3.clicked.connect(self.step3)
         self.boblo.to_step4.clicked.connect(self.step4)
         self.boblo.to_step5.clicked.connect(self.step5)
@@ -36,7 +37,6 @@ class GUI(QMainWindow):
         # from step 1
         self.boblo.pic1.hide()
         self.boblo.text1.hide()
-        self.boblo.aux_button.hide()
 
         # from step 4
         self.boblo.text4.hide()
@@ -55,6 +55,8 @@ class GUI(QMainWindow):
         '''
             Con tus X gramos de plastico...
         '''
+        self.boblo.simulation = False
+
         self.boblo.to_step3.hide()
         self.boblo.text2.hide()
         self.boblo.text3.hide()
@@ -65,6 +67,8 @@ class GUI(QMainWindow):
         self.boblo.back_to_step2.show()
         self.boblo.pic2.show()
 
+        self.boblo.label_grs2.setText(str(self.boblo.plastic))
+        self.boblo.label_blocks.setText(str(plastic_to_blocks(self.boblo.plastic)))
         self.boblo.label_grs2.show()
         self.boblo.label_blocks.show()
 
@@ -86,12 +90,9 @@ class GUI(QMainWindow):
         self.boblo.options.show()
 
         # images test
-        self.boblo.options.add_option(get_absolute_path("./images/boblo1.png"))
-        self.boblo.options.add_option(get_absolute_path("./images/boblo2.png"))
-        self.boblo.options.add_option(get_absolute_path("./images/boblo3.png"))
-        self.boblo.options.add_option(get_absolute_path("./images/boblo4.png"))
-        self.boblo.options.add_option(get_absolute_path("./images/boblo1.png"))
-        self.boblo.options.add_option(get_absolute_path("./images/boblo2.png"))
+        self.boblo.options.add_option(get_absolute_path("./images/sim1.png"))
+        self.boblo.options.add_option(get_absolute_path("./images/sim2.png"))
+        self.boblo.options.add_option(get_absolute_path("./images/sim3.png"))
 
     def step5(self):
         self.boblo.text5.hide()
@@ -109,14 +110,12 @@ class GUI(QMainWindow):
         self.boblo.restart.hide()
 
         # restart variables
-        self.boblo.plastic = 0.0
+        self.boblo.restart_values()
         self.boblo.text1.show()
         self.boblo.pic1.show()
-        self.boblo.aux_button.show()
 
     def item_click(self, item):
         self.boblo.to_step5.show()
-        print(item, str(item.text()))
 
 
 class BoBlo(QWidget):
@@ -132,6 +131,8 @@ class BoBlo(QWidget):
         self.bg_width = 1024
         self.bg_height = 768
         # self.resize(self.screenShape.width(), self.screenShape.height())
+
+        self.simulation = False
 
         self.plastic = 0.0
 
@@ -167,10 +168,6 @@ class BoBlo(QWidget):
         self.label_blocks.setGeometry(180, 330, 310, 150)
         self.label_blocks.setAlignment(Qt.AlignRight)
         self.label_blocks.hide()
-
-        self.aux_button = QPushButton("&Aux", self)
-        self.aux_button.move(650, 670)
-        self.aux_button.resize(self.aux_button.sizeHint())
 
         self.text1 = QLabel(self)
         self.text1.move(50, 100)
@@ -253,12 +250,34 @@ class BoBlo(QWidget):
         self.restart.setStyleSheet(self.button_stylesheet)
         self.restart.hide()
 
+    def restart_values(self):
+        self.plastic = 0.0
+        self.label_grs1.setText(str(self.plastic))
+        self.label_grs2.setText(str(self.plastic))
+
+    def keyPressEvent(self, QKeyEvent):
+
+        if QKeyEvent.text() == "s":
+            if self.simulation:
+                # solo dos botellas aprox. 500 ml
+                if self.plastic == 0:
+                    self.plastic += 30.5
+                else:
+                    self.plastic += 26.3
+
+                self.label_grs1.setText(str(self.plastic))
+                self.label_grs2.setText(str(self.plastic))
+
+            else:
+                self.simulation = True
+                self.emit(SIGNAL("sim"))
+
 
 class OptionsList(QListWidget):
 
     def __init__(self, parent):
         QListWidget.__init__(self, parent)
-        self.setIconSize(QSize(75, 75))
+        self.setIconSize(QSize(800, 80))
 
     def add_option(self, path):
         try:
@@ -269,10 +288,30 @@ class OptionsList(QListWidget):
             return
 
         item = QListWidgetItem()
-        item.setSizeHint(QSize(100, 100))
+        item.setSizeHint(QSize(800, 100))
         icon = QIcon(path)
         item.setIcon(icon)
         self.addItem(item)
+
+
+# class OptionsTable(QTableWidget):
+#     def __init__(self, data, *args):
+#         QTableWidget.__init__(self, *args)
+#         self.data = data
+#         self.setmydata()
+#         self.resizeColumnsToContents()
+#         self.resizeRowsToContents()
+#         self.setSelectionBehavior(QAbstractItemView.SelectRows)
+#
+#     def setmydata(self):
+#
+#         horHeaders = []
+#         for n, key in enumerate(sorted(self.data.keys())):
+#             horHeaders.append(key)
+#             for m, item in enumerate(self.data[key]):
+#                 newitem = QTableWidgetItem(item)
+#                 self.setItem(m, n, newitem)
+#         self.setHorizontalHeaderLabels(horHeaders)
 
 
 if __name__ == "__main__":
