@@ -120,6 +120,7 @@ class GUI(QMainWindow):
 
         # restart variables
         self.boblo.restart_values()
+        self.boblo.options.cellClicked.connect(self.item_click)
         self.boblo.text1.show()
         self.boblo.pic1.show()
 
@@ -266,6 +267,9 @@ class BoBlo(QWidget):
         self.combinations = list()
         self.label_grs1.setText(str(self.plastic))
         self.label_grs2.setText(str(self.plastic))
+        self.options = OptionsTable(self)
+        self.options.setGeometry(100, 170, 824, 430)
+        self.options.hide()
 
     def set_combinations(self, blocks):
         self.all_combinations(blocks)
