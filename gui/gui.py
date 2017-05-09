@@ -23,12 +23,13 @@ class GUI(QMainWindow):
 
     def connections(self):
         self.connect(self.boblo, SIGNAL("sim"), self.step2)
+        self.connect(self.boblo, SIGNAL("invalid"), self.invalid)
         self.boblo.to_step3.clicked.connect(self.step3)
         self.boblo.to_step4.clicked.connect(self.step4)
         self.boblo.to_step5.clicked.connect(self.step5)
         self.boblo.back_to_step2.clicked.connect(self.step2)
         self.boblo.restart.clicked.connect(self.step0)
-        self.boblo.options.itemClicked.connect(self.item_click)
+        self.boblo.options.cellClicked.connect(self.item_click)
 
     def step2(self):
         '''
@@ -68,9 +69,17 @@ class GUI(QMainWindow):
         self.boblo.pic2.show()
 
         self.boblo.label_grs2.setText(str(self.boblo.plastic))
-        self.boblo.label_blocks.setText(str(plastic_to_blocks(self.boblo.plastic)))
+        blocks = plastic_to_blocks(self.boblo.plastic)
+        self.boblo.label_blocks.setText(str(blocks))
         self.boblo.label_grs2.show()
         self.boblo.label_blocks.show()
+
+        # combinations
+        self.boblo.set_combinations(blocks)
+
+    def invalid(self):
+        self.boblo.to_step4.hide()
+        print("INVALID")
 
     def step4(self):
         '''
@@ -89,10 +98,10 @@ class GUI(QMainWindow):
         # combinaciones
         self.boblo.options.show()
 
-        # images test
-        self.boblo.options.add_option(get_absolute_path("./images/sim1.png"))
-        self.boblo.options.add_option(get_absolute_path("./images/sim2.png"))
-        self.boblo.options.add_option(get_absolute_path("./images/sim3.png"))
+        # # images test
+        # self.boblo.options.add_option(get_absolute_path("./images/sim1.png"))
+        # self.boblo.options.add_option(get_absolute_path("./images/sim2.png"))
+        # self.boblo.options.add_option(get_absolute_path("./images/sim3.png"))
 
     def step5(self):
         self.boblo.text5.hide()
@@ -133,6 +142,7 @@ class BoBlo(QWidget):
         # self.resize(self.screenShape.width(), self.screenShape.height())
 
         self.simulation = False
+        self.combinations = list()
 
         self.plastic = 0.0
 
@@ -231,7 +241,8 @@ class BoBlo(QWidget):
         self.to_step5.setStyleSheet(self.button_stylesheet)
         self.to_step5.hide()
 
-        self.options = OptionsList(self)
+        # self.options = OptionsList(self)
+        self.options = OptionsTable(self)
         self.options.setGeometry(100, 170, 824, 430)
         self.options.hide()
 
@@ -252,8 +263,59 @@ class BoBlo(QWidget):
 
     def restart_values(self):
         self.plastic = 0.0
+        self.combinations = list()
         self.label_grs1.setText(str(self.plastic))
         self.label_grs2.setText(str(self.plastic))
+
+    def set_combinations(self, blocks):
+        self.all_combinations(blocks)
+        if len(self.combinations) != 0:
+            if len(self.combinations) == 1 and sum(self.combinations[0].values()) == 0:
+                self.emit(SIGNAL("invalid"))
+
+        else:
+            self.combinations.append({8: 5, 4: 5, 2: 5, 1: 5})
+
+        print(self.combinations)
+        self.options.set_data(self.combinations)
+        return
+
+    def all_combinations(self, blocks, step=8, comb={8: 0, 4: 0, 2: 0, 1: 0}):
+        '''
+            Options: 4x2 (8), 2x2 (4), 2x1 (2), 1x1 (1)
+            Restricciones:
+            - Max. 1 de 1x1 (impar)
+            - Max 5 de un tipo
+            - Max 8 piezas en total
+            - Max 5 entre 1x1 y 2x1
+        '''
+        actual_sum = sum([x[0] * x[1] for x in comb.items()])
+        if step == 0:
+            # restricciones
+
+            if actual_sum == blocks:
+                if comb[1] <= 1 and (comb[1] + comb[2]) <= 5 and sum(
+                        comb.values()) <= 8:
+                    if len([v for v in comb.values() if v > 5]) == 0:
+                        self.combinations.append(comb)
+            return
+
+        else:
+            max_cant = (blocks - actual_sum) // step
+
+            if step == 8:
+                next_step = 4
+            elif step == 4:
+                next_step = 2
+            elif step == 2:
+                next_step = 1
+            else:
+                next_step = 0
+
+            for i in range(0, max_cant + 1):
+                aux = dict(comb)
+                aux[step] = i
+                self.all_combinations(blocks, next_step, aux)
 
     def keyPressEvent(self, QKeyEvent):
 
@@ -273,45 +335,40 @@ class BoBlo(QWidget):
                 self.emit(SIGNAL("sim"))
 
 
-class OptionsList(QListWidget):
+class OptionsTable(QTableWidget):
+    def __init__(self, *args):
+        QTableWidget.__init__(self, *args)
+        self.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.horizontalHeader().hide()
+        self.setIconSize(QSize(80, 80))
+        self.setShowGrid(False)
 
-    def __init__(self, parent):
-        QListWidget.__init__(self, parent)
-        self.setIconSize(QSize(800, 80))
+    def set_data(self, data):
+        self.setColumnCount(8)
+        self.setRowCount(len(data))
 
-    def add_option(self, path):
-        try:
-            with open(path, "r"):
-                pass
-        except FileNotFoundError as err:
-            print(err)
-            return
+        for r, comb in enumerate(data):
+            m = 0  # 0 <= m < 8
 
-        item = QListWidgetItem()
-        item.setSizeHint(QSize(800, 100))
-        icon = QIcon(path)
-        item.setIcon(icon)
-        self.addItem(item)
+            for n in [8, 4, 2, 1]:
+                if comb[n] != 0:
+                    qty = QTableWidgetItem()
+                    qty.setSizeHint(QSize(100, 100))
+                    icon = QIcon(
+                        get_absolute_path("./images/{}x.png".format(comb[n])))
+                    qty.setIcon(icon)
+                    self.setItem(r, m, qty)
 
+                    block = QTableWidgetItem()
+                    block.setSizeHint(QSize(100, 100))
+                    icon = QIcon(get_absolute_path("./images/boblo{}.png".format(n)))
+                    block.setIcon(icon)
+                    self.setItem(r, m + 1, block)
 
-# class OptionsTable(QTableWidget):
-#     def __init__(self, data, *args):
-#         QTableWidget.__init__(self, *args)
-#         self.data = data
-#         self.setmydata()
-#         self.resizeColumnsToContents()
-#         self.resizeRowsToContents()
-#         self.setSelectionBehavior(QAbstractItemView.SelectRows)
-#
-#     def setmydata(self):
-#
-#         horHeaders = []
-#         for n, key in enumerate(sorted(self.data.keys())):
-#             horHeaders.append(key)
-#             for m, item in enumerate(self.data[key]):
-#                 newitem = QTableWidgetItem(item)
-#                 self.setItem(m, n, newitem)
-#         self.setHorizontalHeaderLabels(horHeaders)
+                    m += 2
+
+        self.resizeColumnsToContents()
+        self.resizeRowsToContents()
 
 
 if __name__ == "__main__":
