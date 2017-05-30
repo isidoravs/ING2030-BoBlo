@@ -6,4 +6,4 @@ def plastic_to_blocks(grs):
         grs: float
     '''
 
-    return int(grs/2.5)
+    return int(grs/3)

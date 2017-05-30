@@ -2,8 +2,10 @@ from PyQt4.QtGui import QWidget, QLabel, QPixmap, QMainWindow, QApplication
 from PyQt4.QtGui import QRadioButton, QLineEdit, QPushButton, QDesktopWidget
 from PyQt4.QtGui import QListWidget, QListWidgetItem, QIcon, QFont
 from PyQt4.QtGui import QTableWidget, QTableWidgetItem, QAbstractItemView
-from PyQt4.QtCore import Qt, SIGNAL, QSize
+from PyQt4.QtCore import Qt, SIGNAL, QSize, QThread, QObject, pyqtSignal, pyqtSlot
+from threading import Thread
 from .utils import plastic_to_blocks
+import serial
 import os
 # from .file import Class
 
@@ -18,18 +20,26 @@ class GUI(QMainWindow):
 
         self.boblo = BoBlo()
         self.connections()
+
+        self.new_user = False
+
         self.boblo.show()
         self.boblo.raise_()
 
     def connections(self):
-        self.connect(self.boblo, SIGNAL("sim"), self.step2)
         self.connect(self.boblo, SIGNAL("invalid"), self.invalid)
+        self.connect(self.boblo, SIGNAL("weight"), self.check_step)
         self.boblo.to_step3.clicked.connect(self.step3)
         self.boblo.to_step4.clicked.connect(self.step4)
         self.boblo.to_step5.clicked.connect(self.step5)
         self.boblo.back_to_step2.clicked.connect(self.step2)
         self.boblo.restart.clicked.connect(self.step0)
         self.boblo.options.cellClicked.connect(self.item_click)
+
+    def check_step(self):
+        if not self.new_user:
+            self.new_user = True
+            self.step2()
 
     def step2(self):
         '''
@@ -56,7 +66,6 @@ class GUI(QMainWindow):
         '''
             Con tus X gramos de plastico...
         '''
-        self.boblo.simulation = False
 
         self.boblo.to_step3.hide()
         self.boblo.text2.hide()
@@ -107,6 +116,7 @@ class GUI(QMainWindow):
         self.boblo.text5.hide()
         self.boblo.to_step5.hide()
         self.boblo.options.hide()
+        self.boblo.weight_monitor.arduino.write(b'd')
 
         self.boblo.text6.show()
         self.boblo.text7.show()
@@ -123,9 +133,13 @@ class GUI(QMainWindow):
         self.boblo.options.cellClicked.connect(self.item_click)
         self.boblo.text1.show()
         self.boblo.pic1.show()
+        self.new_user = False
 
     def item_click(self, item):
         self.boblo.to_step5.show()
+
+    def closeEvent(self, *args, **kwargs):
+        self.boblo.weight_monitor.arduino.close()
 
 
 class BoBlo(QWidget):
@@ -142,10 +156,9 @@ class BoBlo(QWidget):
         self.bg_height = 768
         # self.resize(self.screenShape.width(), self.screenShape.height())
 
-        self.simulation = False
         self.combinations = list()
 
-        self.plastic = 0.0
+        self.plastic = 0
 
         self.button_stylesheet = "QPushButton {background-color: #8FCBF4;" \
                                  "border-style: outset;" \
@@ -262,8 +275,11 @@ class BoBlo(QWidget):
         self.restart.setStyleSheet(self.button_stylesheet)
         self.restart.hide()
 
+        # threading
+        self.start_thread()
+
     def restart_values(self):
-        self.plastic = 0.0
+        self.plastic = 0
         self.combinations = list()
         self.label_grs1.setText(str(self.plastic))
         self.label_grs2.setText(str(self.plastic))
@@ -321,22 +337,42 @@ class BoBlo(QWidget):
                 aux[step] = i
                 self.all_combinations(blocks, next_step, aux)
 
-    def keyPressEvent(self, QKeyEvent):
+    def start_thread(self):
+        self.weight_monitor = ArduinoMonitor()
+        self.t = QThread(self)
+        self.weight_monitor.weight_signal.connect(self.update_weight)
+        self.weight_monitor.moveToThread(self.t)
+        self.t.started.connect(self.weight_monitor.check_weight)
+        self.t.start()
 
-        if QKeyEvent.text() == "s":
-            if self.simulation:
-                # solo dos botellas aprox. 500 ml
-                if self.plastic == 0:
-                    self.plastic += 30.5
-                else:
-                    self.plastic += 26.3
+    @pyqtSlot(str)
+    def update_weight(self, grs):
+        # actualizar peso en interfaz
+        if grs != "Exito":
+            self.plastic = int(grs)
+            self.label_grs1.setText(str(self.plastic))
+            self.label_grs2.setText(str(self.plastic))
+            if int(grs) != 0:
+                self.emit(SIGNAL("weight"))
+        else:
+            print(grs)
 
-                self.label_grs1.setText(str(self.plastic))
-                self.label_grs2.setText(str(self.plastic))
 
-            else:
-                self.simulation = True
-                self.emit(SIGNAL("sim"))
+class ArduinoMonitor(QObject):
+    weight_signal = pyqtSignal(str)  # args
+    arduino = serial.Serial('COM4', 38400, timeout=1.0)
+
+    @pyqtSlot()
+    def check_weight(self):
+        while True:
+            line = self.arduino.readline()  # bytes
+            weight = line.decode('utf-8').strip()
+            if weight == "1" or weight == "-0":
+                weight = "0"
+
+            if weight != "":
+                # print(weight, "gr.")
+                self.weight_signal.emit(weight)
 
 
 class OptionsTable(QTableWidget):
