@@ -1,10 +1,11 @@
 from PyQt4.QtGui import QWidget, QLabel, QPixmap, QMainWindow, QApplication
 from PyQt4.QtGui import QRadioButton, QLineEdit, QPushButton, QDesktopWidget
-from PyQt4.QtGui import QListWidget, QListWidgetItem, QIcon, QFont
+from PyQt4.QtGui import QListWidget, QListWidgetItem, QIcon, QFont, QSound
 from PyQt4.QtGui import QTableWidget, QTableWidgetItem, QAbstractItemView
-from PyQt4.QtCore import Qt, SIGNAL, QSize, QThread, QObject, pyqtSignal, pyqtSlot
-from threading import Thread
+from PyQt4.QtCore import Qt, SIGNAL, QSize, QObject, pyqtSignal, pyqtSlot
+from PyQt4.QtCore import QTimer, QThread
 from .utils import plastic_to_blocks
+from time import sleep
 import serial
 import os
 # from .file import Class
@@ -17,6 +18,9 @@ def get_absolute_path(relative_path):
 class GUI(QMainWindow):
     def __init__(self):
         super().__init__()
+
+        self.timer = QTimer(self)
+        self.timer.setSingleShot(True)
 
         self.boblo = BoBlo()
         self.connections()
@@ -31,7 +35,7 @@ class GUI(QMainWindow):
         self.connect(self.boblo, SIGNAL("weight"), self.check_step)
         self.boblo.to_step3.clicked.connect(self.step3)
         self.boblo.to_step4.clicked.connect(self.step4)
-        self.boblo.to_step5.clicked.connect(self.step5)
+        self.boblo.to_step5.clicked.connect(self.step_process1)
         self.boblo.back_to_step2.clicked.connect(self.step2)
         self.boblo.restart.clicked.connect(self.step0)
         self.boblo.options.cellClicked.connect(self.item_click)
@@ -48,6 +52,7 @@ class GUI(QMainWindow):
         # from step 1
         self.boblo.pic1.hide()
         self.boblo.text1.hide()
+        self.boblo.text_dato.hide()
 
         # from step 4
         self.boblo.text4.hide()
@@ -112,15 +117,38 @@ class GUI(QMainWindow):
         # self.boblo.options.add_option(get_absolute_path("./images/sim2.png"))
         # self.boblo.options.add_option(get_absolute_path("./images/sim3.png"))
 
-    def step5(self):
+    def step_process1(self):
         self.boblo.text5.hide()
         self.boblo.to_step5.hide()
         self.boblo.options.hide()
-        self.boblo.weight_monitor.arduino.write(b'd')
+        self.boblo.audio.play()
+
+        self.boblo.text_process.show()
+        self.timer.singleShot(2000, self.step_process2)
+
+    def step_process2(self):
+        self.boblo.text_process.setPixmap(
+            QPixmap(get_absolute_path("./images/process2.png")))
+        self.timer.singleShot(2000, self.step_process3)
+
+    def step_process3(self):
+        self.boblo.text_process.setPixmap(
+            QPixmap(get_absolute_path("./images/process3.png")))
+        self.timer.singleShot(2000, self.step5)
+
+    def step5(self):
+        self.boblo.text_process.hide()
 
         self.boblo.text6.show()
         self.boblo.text7.show()
         self.boblo.restart.show()
+        self.dispenser()
+
+    def dispenser(self):
+        piezas = 2
+        for i in range(piezas):
+            self.boblo.weight_monitor.arduino.write(b'd')
+            sleep(2)
 
     def step0(self):
         # clean screen
@@ -131,7 +159,10 @@ class GUI(QMainWindow):
         # restart variables
         self.boblo.restart_values()
         self.boblo.options.cellClicked.connect(self.item_click)
+        self.text_process.setPixmap(
+            QPixmap(get_absolute_path("./images/process1.png")))
         self.boblo.text1.show()
+        self.boblo.text_dato.show()
         self.boblo.pic1.show()
         self.new_user = False
 
@@ -148,12 +179,12 @@ class BoBlo(QWidget):
     '''
     def __init__(self):
         super().__init__()
-        self.setFixedSize(1024, 768)
+        self.setGeometry(200, 100, 1024, 768)
         self.setWindowTitle('BoBlo - Bottle Blocks')
         self.setWindowIcon(QIcon(get_absolute_path('images/icon2.png')))
         self.screenShape = QDesktopWidget().screenGeometry()
-        self.bg_width = 1024
-        self.bg_height = 768
+        self.bg_width = 1280
+        self.bg_height = 990
         # self.resize(self.screenShape.width(), self.screenShape.height())
 
         self.combinations = list()
@@ -171,64 +202,68 @@ class BoBlo(QWidget):
                                  "QPushButton:pressed {background-color: #4F94CD}"
 
         self.background = QLabel(self)
-        self.background.setGeometry(0, 0, self.bg_width, self.bg_height)
+        self.background.setGeometry(375, 0, self.bg_width, self.bg_height)
         self.background.setPixmap(QPixmap(get_absolute_path(
             "./images/background.jpg")).scaled(self.bg_width, self.bg_height))
 
         self.label_grs1 = QLabel(str(self.plastic), self)
         self.label_grs1.setFont(QFont("Comic Sans MS", 40, QFont.Bold))
-        self.label_grs1.setGeometry(120, 270, 310, 120)
+        self.label_grs1.setGeometry(640, 270, 310, 120)
         self.label_grs1.setAlignment(Qt.AlignRight)
         self.label_grs1.hide()
 
         self.label_grs2 = QLabel(str(self.plastic), self)
         self.label_grs2.setFont(QFont("Comic Sans MS", 40, QFont.Bold))
-        self.label_grs2.setGeometry(300, 58, 310, 120)
+        self.label_grs2.setGeometry(820, 58, 310, 120)
         self.label_grs2.setAlignment(Qt.AlignCenter)
         self.label_grs2.hide()
 
         self.label_blocks = QLabel(str(plastic_to_blocks(self.plastic)), self)
         self.label_blocks.setFont(QFont("Comic Sans MS", 50, QFont.Bold))
-        self.label_blocks.setGeometry(180, 330, 310, 150)
+        self.label_blocks.setGeometry(700, 330, 310, 150)
         self.label_blocks.setAlignment(Qt.AlignRight)
         self.label_blocks.hide()
 
+        self.text_dato = QLabel(self)
+        self.text_dato.move(570, 550)
+        self.text_dato.setPixmap(QPixmap(get_absolute_path("./images/dato1.png")))
+
         self.text1 = QLabel(self)
-        self.text1.move(50, 100)
+        self.text1.move(570, 100)
         self.text1.setPixmap(QPixmap(get_absolute_path("./images/text1.png")))
 
         self.pic1 = QLabel(self)
-        self.pic1.move(550, 450)
+        self.pic1.move(1070, 400)
         self.pic1.setPixmap(QPixmap(get_absolute_path("./images/image_step1.png")))
 
         self.text2 = QLabel(self)
-        self.text2.move(50, 50)
+        self.text2.move(570, 50)
         self.text2.setPixmap(QPixmap(get_absolute_path("./images/text2.png")))
         self.text2.hide()
 
         self.text3 = QLabel(self)
-        self.text3.move(410, 260)
+        self.text3.move(930, 260)
         self.text3.setPixmap(QPixmap(get_absolute_path("./images/text3.png")))
         self.text3.hide()
 
         self.text4 = QLabel(self)
-        self.text4.move(50, 50)
+        self.text4.move(570, 50)
         self.text4.setPixmap(QPixmap(get_absolute_path("./images/text4.png")))
         self.text4.hide()
 
         self.pic2 = QLabel(self)
-        self.pic2.move(550, 350)
+        self.pic2.move(1070, 350)
         self.pic2.setPixmap(
             QPixmap(get_absolute_path("./images/boblo1.png")))
         self.pic2.hide()
 
         self.text5 = QLabel(self)
-        self.text5.move(50, 50)
+        self.text5.move(570, 50)
         self.text5.setPixmap(QPixmap(get_absolute_path("./images/text5.png")))
         self.text5.hide()
 
         self.to_step3 = QPushButton("&Quiero mis piezas", self)
-        self.to_step3.setGeometry(600, 570, 300, 90)
+        self.to_step3.setGeometry(1120, 570, 300, 90)
         self.to_step3.setStyleSheet(self.button_stylesheet)
         self.to_step3.hide()
 
@@ -244,36 +279,44 @@ class BoBlo(QWidget):
         self.back_to_step2 = QPushButton("", self)
         self.back_to_step2.setIcon(self.icon_arrowi)
         self.back_to_step2.setIconSize(QSize(250, 60))
-        self.back_to_step2.setGeometry(124, 570, 300, 90)
+        self.back_to_step2.setGeometry(644, 570, 300, 90)
         self.back_to_step2.setStyleSheet(self.button_stylesheet)
         self.back_to_step2.hide()
 
         self.to_step5 = QPushButton("", self)
         self.to_step5.setIcon(self.icon_arrow)
         self.to_step5.setIconSize(QSize(250, 60))
-        self.to_step5.setGeometry(620, 610, 300, 90)
+        self.to_step5.setGeometry(1140, 610, 300, 90)
         self.to_step5.setStyleSheet(self.button_stylesheet)
         self.to_step5.hide()
 
         # self.options = OptionsList(self)
         self.options = OptionsTable(self)
-        self.options.setGeometry(100, 170, 824, 430)
+        self.options.setGeometry(620, 170, 824, 430)
         self.options.hide()
 
         self.text6 = QLabel(self)
-        self.text6.move(50, 100)
+        self.text6.move(570, 100)
         self.text6.setPixmap(QPixmap(get_absolute_path("./images/text6.png")))
         self.text6.hide()
 
         self.text7 = QLabel(self)
-        self.text7.move(60, 480)
+        self.text7.move(580, 480)
         self.text7.setPixmap(QPixmap(get_absolute_path("./images/text7.png")))
         self.text7.hide()
 
+        self.text_process = QLabel(self)
+        self.text_process.move(570, 480)
+        self.text_process.setPixmap(
+            QPixmap(get_absolute_path("./images/process1.png")))
+        self.text_process.hide()
+
         self.restart = QPushButton("&OK", self)
-        self.restart.setGeometry(600, 570, 300, 90)
+        self.options.setGeometry(1120, 170, 824, 430)
         self.restart.setStyleSheet(self.button_stylesheet)
         self.restart.hide()
+
+        self.audio = QSound(get_absolute_path("./audio/boblo.wav"))
 
         # threading
         self.start_thread()
@@ -284,7 +327,7 @@ class BoBlo(QWidget):
         self.label_grs1.setText(str(self.plastic))
         self.label_grs2.setText(str(self.plastic))
         self.options = OptionsTable(self)
-        self.options.setGeometry(100, 170, 824, 430)
+        self.options.setGeometry(620, 170, 824, 430)
         self.options.hide()
 
     def set_combinations(self, blocks):
