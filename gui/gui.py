@@ -145,10 +145,11 @@ class GUI(QMainWindow):
         self.dispenser()
 
     def dispenser(self):
-        piezas = 2
-        for i in range(piezas):
-            self.boblo.weight_monitor.arduino.write(b'd')
-            sleep(2)
+        self.boblo.weight_monitor.arduino.write(b'd')
+        # piezas = 2
+        # for i in range(piezas):
+        #     self.boblo.weight_monitor.arduino.write(b'd')
+        #     sleep(2)
 
     def step0(self):
         # clean screen
@@ -159,7 +160,7 @@ class GUI(QMainWindow):
         # restart variables
         self.boblo.restart_values()
         self.boblo.options.cellClicked.connect(self.item_click)
-        self.text_process.setPixmap(
+        self.boblo.text_process.setPixmap(
             QPixmap(get_absolute_path("./images/process1.png")))
         self.boblo.text1.show()
         self.boblo.text_dato.show()
@@ -271,7 +272,7 @@ class BoBlo(QWidget):
         self.to_step4 = QPushButton("", self)
         self.to_step4.setIcon(self.icon_arrow)
         self.to_step4.setIconSize(QSize(250, 60))
-        self.to_step4.setGeometry(600, 570, 300, 90)
+        self.to_step4.setGeometry(1120, 570, 300, 90)
         self.to_step4.setStyleSheet(self.button_stylesheet)
         self.to_step4.hide()
 
@@ -301,7 +302,7 @@ class BoBlo(QWidget):
         self.text6.hide()
 
         self.text7 = QLabel(self)
-        self.text7.move(580, 480)
+        self.text7.move(570, 480)
         self.text7.setPixmap(QPixmap(get_absolute_path("./images/text7.png")))
         self.text7.hide()
 
@@ -312,7 +313,7 @@ class BoBlo(QWidget):
         self.text_process.hide()
 
         self.restart = QPushButton("&OK", self)
-        self.options.setGeometry(1120, 170, 824, 430)
+        self.restart.setGeometry(1120, 570, 300, 90)
         self.restart.setStyleSheet(self.button_stylesheet)
         self.restart.hide()
 
@@ -414,7 +415,7 @@ class ArduinoMonitor(QObject):
                 weight = "0"
 
             if weight != "":
-                # print(weight, "gr.")
+                #print(weight, "gr.")
                 self.weight_signal.emit(weight)
 
 
